@@ -217,13 +217,13 @@ ggplot(simulations, aes(x=t.value, color=model)) +
   
 <<power-simulations-code, results='hide'>>=
 ## parameters for lex dec, log rts, categorical frequency (high/low)
-intercept <- 1.8
-freq_slope <- -0.01
-bysub_sd <- c(0.02, 0.01)
-resid_sd <- 0.02
+intercept <- 6.4                        # mean log-RT
+freq_slope <- -0.06                     # high vs. low frequency
+bysub_sd <- c(0.15, 0.06)               # random effect sd
+resid_sd <- 0.18                        # residual sd
 
-n_subj <- 21
-n_trials <- 80
+n_subj <- 21                            # number of subjects in original data
+n_trials <- 80                          # number of trials each subject did
 
 ## parameters to vary in simulation: number of subjects
 sim.params <- expand.grid(n.subj=c(6, 12, 24))
