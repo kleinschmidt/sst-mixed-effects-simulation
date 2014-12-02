@@ -212,10 +212,10 @@ ggplot(simulations, aes(x=t.value, color=model)) +
   \end{itemize}
 \end{frame}
   
-\begin{frame}
+\begin{frame}[fragile]
   \frametitle{Simulation code}
   
-<<power-simulations-code>>=
+<<power-simulations-code, results='hide'>>=
 ## parameters for lex dec, log rts, categorical frequency (high/low)
 intercept <- 1.8
 freq_slope <- -0.01
@@ -249,10 +249,10 @@ falsepos.factory <- function(...) {
 \end{frame}
 
 
-\begin{frame}
+\begin{frame}[fragile]
   \frametitle{Run simulations}
 
-<<power-simulations>>=
+<<power-simulations, results='hide'>>=
 ## run simulations for effect present (falseneg) and absent (falsepos)
 sims.falseneg <- mdply(sim.params,
                        function(...) {
