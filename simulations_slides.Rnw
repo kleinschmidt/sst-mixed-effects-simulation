@@ -1,0 +1,308 @@
+\documentclass[9pt,compress,xcolor*pst,handout]{beamer}
+\mode<presentation>
+
+%\input{rogers_beamer_settings.tex}
+%\usepackage{times}
+\usepackage[english]{babel}
+%\usepackage[latin1]{inputenc}
+\usepackage{graphicx,subfigure}
+\usepackage{color}
+%\usepackage{tweaklist}
+\selectlanguage{english}
+\usepackage{etex}
+%\usepackage{pstricks}
+%\usepackage{pst-node}
+\usepackage{amssymb}
+\usepackage{amsmath}
+%\usepackage{tikz}
+%\usepackage{calc}
+\usepackage{amssymb}
+\usepackage{apacite}
+%\usepackage{multicol}
+\bibliographystyle{apacite} %CSLI bib format
+
+%\usetheme[right]{Marburg}
+\usetheme{PaloAlto}
+\usefonttheme{structurebold}
+\usefonttheme{professionalfonts}
+\usecolortheme{crane}
+%\setbeamercovered{invisible}
+%\usetheme[right,hideothersubsections]{Goettingen}
+
+%\newcommand{\newblock}{}
+%\newenvironment{nobulletenv}
+%{\only{%
+%\setbeamertemplate{itemize item}{}%
+%\setbeamertemplate{itemize subitem}{}%
+%\setbeamertemplate{itemize subsubitem}{}}}
+%{}
+
+\newcommand{\itemhook}{\setlength{\topsep}{0pt}%
+  \setlength{\itemsep}{-5pt}}
+
+\setkeys{Gin}{width=\textwidth}
+\definecolor{lightgrey}{gray}{0.9}
+\definecolor{grey}{gray}{0.7}
+\definecolor{darkgrey}{gray}{0.95}
+\definecolor{bglightgrey}{gray}{0.3}
+
+
+\definecolor{accentYellow}{rgb}{0.99,0.76,0.06}
+%\definecolor{accentYellow}{rgb}{0.99,0.91,0.68}
+\definecolor{accentBlue}{rgb}{0.06,0.06,0.76}
+
+%\definecolor{MyGray}{rgb}{0.96,0.97,0.98}
+\definecolor{MyBackgroundBg}{gray}{0.8}
+\definecolor{MyQuestionBg}{rgb}{0.99,0.76,0.06}
+\definecolor{MyProblemBg}{rgb}{0.06,0.06,0.76}
+\setbeamercovered{dynamic}
+\setbeamercolor{sidebar}{bg=lightgrey}
+
+\newenvironment{Question}[1]%          environment name
+{\begin{itemize}\vspace{1ex}\par\color{MyOrange}\item<+->[\color{MyOrange}{\bf Q:}] #1}% begin code
+{\end{itemize}}%
+
+%\newcommand{\footercredit}[1]{
+% \setbox1=\hbox{\emph{#1}}
+% \newdimen\xlocation
+% \xlocation = 8cm
+% \advance\xlocation by -\the\wd1
+%  \begin{textblock*}{\the\wd1}(\xlocation,2cm)
+%    \box\1
+%  \end{textblock*}
+%  \begin{textblock*}{5cm}(7.5cm,8.8cm)
+%    \emph{#1}
+%  \end{textblock*}
+%}
+
+
+
+
+\title{Simulation to understand mixed effects models}
+\subtitle{SST 2014 Workshops}
+\author{Dave Kleinschmidt}
+\institute{Brain and Cognitive Sciences\\University of Rochester}
+% \institute{Brain and Cognitive Sciences\\University of Rochester}
+
+
+\begin{document}
+
+<<preamble, echo=FALSE, results='hide', cache=FALSE, message=F>>=
+library(plyr)
+library(reshape2)
+
+library(ggplot2)
+library(stringr)
+
+# set knitr chunk option defaults for this document
+opts_chunk$set(results='markup', echo=TRUE, cache=T, autodep=T, warning=F, message=F, prompt=F,
+               fig.width=4, fig.height=4, out.width='0.5\\textwidth', fig.pos='!h', fig.lp='fig:',
+               tidy=F, size='scriptsize')
+
+data(lexdec, package='languageR')
+
+# set ggplot theme globally
+theme_set(theme_bw())
+
+@
+
+\frame[plain]{\titlepage}
+
+\begin{frame}
+  \frametitle{Virtual reality}
+  \begin{itemize}[<+->]
+  \item Mixed models can be complicated and behave in non-intuitive ways
+  \item Can make it hard to interpret results when analyzing your real data
+  \item How do you know what the effect of your modeling decisions are?
+  \item \emph{Forget about real data}
+  \item Use \emph{simulated} data to probe model behavior.
+  \end{itemize}
+\end{frame}
+
+
+\section{False positives}
+
+\begin{frame}[fragile]
+  \frametitle{Code: simulate data}
+<<results='hide'>>=
+library(plyr)
+library(mvtnorm)
+library(lme4)
+
+make.data.generator <- function(true.effects=c(0,0),
+                                resid.var=1,
+                                ranef.covar=diag(c(1,1)),
+                                n.subj=24,
+                                n.obs=24
+                                ) 
+{   
+  # create design matrix for our made up experiment
+  data.str <- data.frame(freq=factor(c(rep('high', n.obs/2), rep('low', n.obs/2))))
+  contrasts(data.str$freq) <- contr.sum(2)
+  model.mat <- model.matrix(~ 1 + freq, data.str)
+  
+  generate.data <- function() {
+    # sample data set under mixed effects model with random slope/intercepts
+    simulated.data <- rdply(n.subj, {
+      beta <- t(rmvnorm(n=1, sigma=ranef.covar)) + true.effects
+      expected.RT <- model.mat %*% beta
+      epsilon <- rnorm(n=length(expected.RT), mean=0, sd=sqrt(resid.var))
+      data.frame(data.str,
+                 RT=expected.RT + epsilon)
+    })
+    names(simulated.data)[1] <- 'subject'
+    simulated.data
+  }
+}
+@ 
+\end{frame}
+
+\begin{frame}[fragile]
+  \frametitle{Code: fit model}
+<<results='hide'>>=
+fit.models <- function(simulated.data) {
+  # fit models and extract coefs
+  lm.coefs <- coefficients(summary(lm(RT ~ 1+freq, simulated.data)))[, 1:3]
+  rand.int.coefs <- coefficients(summary(lmer(RT ~ 1+freq + (1|subject), simulated.data)))
+  rand.slope.coefs <- coefficients(summary(lmer(RT ~ 1+freq + (1+freq|subject), simulated.data)))
+  # format output all pretty
+  rbind(data.frame(model='lm', predictor=rownames(lm.coefs), lm.coefs),
+        data.frame(model='rand.int', predictor=rownames(rand.int.coefs), rand.int.coefs),
+        data.frame(model='rand.slope', predictor=rownames(rand.slope.coefs), rand.slope.coefs))
+}
+@ 
+\end{frame}
+
+
+\begin{frame}[fragile]
+  \frametitle{Generate data and fit models}
+<<>>=
+gen.dat <- make.data.generator(true.effects=c(0,0), n.subj=24, n.obs=24)
+simulations <- rdply(.n=100,
+                     fit.models(gen.dat()))
+@ 
+<<>>=
+head(simulations)
+daply(simulations, .(model, predictor), function(df) type1err=mean(abs(df$t.value)>1.96))
+@ 
+\end{frame}
+
+
+\begin{frame}[fragile]
+  \frametitle{Visualize}
+<<fig.width=5, fig.height=3.5, out.width='0.75\\textwidth'>>=
+# use reshape2::melt to get the data into a more convenient format (see next section)
+ggplot(simulations, aes(x=t.value, color=model)) +
+  geom_vline(xintercept=c(-1.96, 1.96), color='#888888', linetype=3) + 
+  scale_x_continuous('t value') + 
+  geom_density() +
+  facet_grid(predictor~.)
+@ 
+\end{frame}
+
+\section{Power}
+
+
+
+\begin{frame}
+  \frametitle{Power vs. false-positive simulations}
+  \begin{itemize}
+  \item Power is impacted by \emph{sample size}.
+  \item True both of observation sample size and number of subjects
+  \end{itemize}
+\end{frame}
+  
+\begin{frame}
+  \frametitle{Simulation code}
+  
+<<power-simulations-code>>=
+## parameters for lex dec, log rts, categorical frequency (high/low)
+intercept <- 1.8
+freq_slope <- -0.01
+bysub_sd <- c(0.02, 0.01)
+resid_sd <- 0.02
+
+n_subj <- 21
+n_trials <- 80
+
+## parameters to vary in simulation: number of subjects
+sim.params <- expand.grid(n.subj=c(6, 12, 24))
+
+## data generator factory functions for false negatives and false positives
+falseneg.factory <- function(...) {
+  make.data.generator(true.effects = c(intercept, freq_slope),
+                      resid.var = resid_sd^2,
+                      ranef.covar = diag(bysub_sd^2),
+                      n.obs = n_trials, 
+                      ...)
+}
+
+falsepos.factory <- function(...) {
+  make.data.generator(true.effects = c(0,0),
+                      resid.var = resid_sd^2,
+                      ranef.covar = diag(bysub_sd^2),
+                      n.obs = n_trials, 
+                      ...)
+}
+@ 
+
+\end{frame}
+
+
+\begin{frame}
+  \frametitle{Run simulations}
+
+<<power-simulations>>=
+## run simulations for effect present (falseneg) and absent (falsepos)
+sims.falseneg <- mdply(sim.params,
+                       function(...) {
+                         gen.dat <- falseneg.factory(...)
+                         rdply(.n=100, fit.models(gen.dat()))
+                       })
+
+sims.falsepos <- mdply(sim.params,
+                       function(...) {
+                         gen.dat <- falsepos.factory(...)
+                         rdply(.n=100, fit.models(gen.dat()))
+                       })
+
+sims <- rbind(data.frame(sims.falseneg, type='false_neg'),
+              data.frame(sims.falsepos, type='false_pos'))
+@ 
+\end{frame}
+
+
+\begin{frame}
+  \frametitle{Visualize: t-value distributions}
+<<plot-t-vals, echo=FALSE, fig.width=7, fig.height=4, out.width='\\textwidth'>>=
+ggplot(subset(sims, predictor=='freq1'),
+       aes(x=t.value, color=model)) + 
+         geom_density() + 
+         facet_grid(n.subj~type, scales='free', space='free') + 
+         geom_vline(xintercept=c(-1.96, 1.96), linetype=3) + 
+         scale_x_continuous('Frequency effect t value')
+@ 
+\end{frame}
+
+\begin{frame}
+  \frametitle{Visualize: power vs. false-positives}
+<<plot-err-rates, echo=FALSE, fig.width=7, fig.height=4, out.width='\\textwidth'>>=
+## extract false positive and negative error rates for each model/num. subjects
+err_rates <- ddply(subset(sims, predictor=='freq1'),
+                   .(n.subj, model),
+                   function(d) {
+                     signif <- abs(d$t.value) > 1.96
+                     data.frame(false_pos=mean(signif[d$type=='false_pos']),
+                                power=mean(signif[d$type=='false_neg']))
+                   })
+
+
+ggplot(err_rates, aes(x=false_pos, y=power, color=model, shape=as.factor(n.subj))) + 
+  geom_point(size=6)
+
+@ 
+  
+\end{frame}
+
+
+\end{document}
