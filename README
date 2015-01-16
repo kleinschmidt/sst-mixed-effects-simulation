@@ -1,7 +1,11 @@
-Two examples of simulations of mixed effects model
+Two examples of simulations of mixed effects models
 ==================================================
 
-This demonstrates how to generate fake data following the assumptions of a linear mixed model, and re-fitting the generating model and other alternative models.  There are two examples:
+These are slides presented by [Dave Kleinschmidt](http://www.bcs.rochester.edu/people/dkleinschmidt/) at the [SST2014](http://www.nzilbb.canterbury.ac.nz/SST.shtml) [workshop on mixed effects models](http://www.nzilbb.canterbury.ac.nz/SST_TD_Jaeger.html).
+
+They demonstrate how to use simulations to understand the behavior of different types of models.  Specifically, they generate fake data following the assumptions of a linear mixed model, and then fit a range of different models (including the generating model).  By generating the data yourself, you know whether there is really and effect or not, and by repeating the simulations many times you can estimate whether or not one kind of model (e.g. a mixed effects model with only random intercepts) makes statistically correct inferences for the type of data you generated (e.g. fewer than 5% false positives, or effect detected when no effect was actually present).
+
+There are two examples:
 
 False positives from ignoring random slopes
 -------------------------------------------
